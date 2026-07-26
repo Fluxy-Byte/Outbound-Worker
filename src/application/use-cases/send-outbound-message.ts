@@ -1,6 +1,7 @@
 import type { Channel } from "amqplib";
 import { MESSAGES_COLLECTION, type MessageDocument } from "../../domain/contracts/message-document";
 import type { OutboundMessagePayload } from "../../domain/contracts/outbound-message-payload";
+import { clearSessionProcessing } from "../../infrastructure/cache/redis/processing-state";
 import { getMongoDb } from "../../infrastructure/database/mongo/client";
 import { prisma } from "../../infrastructure/database/prisma/client";
 import { sendTextMessage } from "../../infrastructure/meta/graph-api-client";
@@ -18,6 +19,13 @@ const SENDER_TYPE_BY_ORIGIN: Record<OutboundMessagePayload["origin"], MessageDoc
 /// avisa o Desk-Worker (fila desk.message.sent) pra reconciliar o
 /// TicketMessage correspondente com o id do documento Mongo.
 export async function sendOutboundMessage(channel: Channel, payload: OutboundMessagePayload): Promise<void> {
+  // Libera o flag de "sessão em processamento" assim que o turno de IA
+  // termina — independente do resultado do envio abaixo, o AI-Worker já
+  // concluiu o processamento desse lote.
+  if (payload.origin === "AI" && payload.finishesProcessing) {
+    await clearSessionProcessing(payload.messagingSession.id);
+  }
+
   // Só texto é gerado pela pipeline hoje (áudio/imagem: nenhum serviço a
   // montante ainda produz isso — quando produzir, a Graph API aceita type
   // "audio"/"image" com { link } ou { id }, mesma forma de chamada).
