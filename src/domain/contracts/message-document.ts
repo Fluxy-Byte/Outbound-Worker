@@ -1,8 +1,8 @@
 import type { ObjectId } from "mongodb";
 
 /// Contrato da collection `messages` no Mongo (banco compartilhado). Espelho
-/// exato de Agent-Api/src/domain/contracts/message-document.ts — mudanças
-/// precisam ser replicadas manualmente nos dois lados.
+/// exato de Agent-Api/Campaign-Worker/src/domain/contracts/message-document.ts —
+/// mudanças precisam ser replicadas manualmente nos demais.
 export interface MessageDocument {
   _id?: ObjectId;
   organizationId: string;
@@ -10,13 +10,15 @@ export interface MessageDocument {
   whatsappChannelId: string;
   messagingSessionId: string;
   direction: "INBOUND" | "OUTBOUND";
-  senderType: "CUSTOMER" | "AGENT_AI" | "ATTENDANT" | "SYSTEM";
+  senderType: "CUSTOMER" | "AGENT_AI" | "ATTENDANT" | "SYSTEM" | "CAMPAIGN";
   messageType: "TEXT" | "AUDIO" | "IMAGE" | "DOCUMENT" | "STICKER";
   externalMessageId?: string;
   text?: string;
   mediaUrl?: string;
   mediaCaption?: string;
   waStatus?: "sent" | "delivered" | "read" | "failed";
+  campaignId?: string;
+  templateName?: string;
   createdAt: Date;
 }
 
