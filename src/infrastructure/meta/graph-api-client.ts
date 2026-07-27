@@ -17,33 +17,60 @@ interface SendTextResult {
   externalMessageId: string;
 }
 
-export async function sendTextMessage(phoneNumberId: string, toWaId: string, text: string): Promise<SendTextResult> {
+async function postMessage(phoneNumberId: string, body: Record<string, unknown>): Promise<SendTextResult> {
   const response = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.META_ACCESS_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: toWaId,
-      type: "text",
-      text: { body: text },
-    }),
+    body: JSON.stringify(body),
   });
 
-  const body = (await response.json().catch(() => null)) as { messages?: { id: string }[]; error?: unknown } | null;
+  const responseBody = (await response.json().catch(() => null)) as { messages?: { id: string }[]; error?: unknown } | null;
 
   if (!response.ok) {
-    throw new MetaGraphApiError(`Meta Graph API respondeu ${response.status}`, response.status, body);
+    throw new MetaGraphApiError(`Meta Graph API respondeu ${response.status}`, response.status, responseBody);
   }
 
-  const externalMessageId = body?.messages?.[0]?.id;
+  const externalMessageId = responseBody?.messages?.[0]?.id;
   if (!externalMessageId) {
-    throw new MetaGraphApiError("Resposta da Meta sem id de mensagem.", response.status, body);
+    throw new MetaGraphApiError("Resposta da Meta sem id de mensagem.", response.status, responseBody);
   }
 
   return { externalMessageId };
+}
+
+export async function sendTextMessage(phoneNumberId: string, toWaId: string, text: string): Promise<SendTextResult> {
+  return postMessage(phoneNumberId, {
+    messaging_product: "whatsapp",
+    to: toWaId,
+    type: "text",
+    text: { body: text },
+  });
+}
+
+type MediaMessageType = "image" | "audio" | "document" | "sticker";
+
+/// image/document aceitam caption; document também aceita filename (Meta
+/// mostra ele no card do anexo pro cliente). audio/sticker não têm caption.
+export async function sendMediaMessage(
+  phoneNumberId: string,
+  toWaId: string,
+  type: MediaMessageType,
+  mediaUrl: string,
+  options: { caption?: string; filename?: string } = {},
+): Promise<SendTextResult> {
+  const media: Record<string, unknown> = { link: mediaUrl };
+  if (options.caption && (type === "image" || type === "document")) media.caption = options.caption;
+  if (options.filename && type === "document") media.filename = options.filename;
+
+  return postMessage(phoneNumberId, {
+    messaging_product: "whatsapp",
+    to: toWaId,
+    type,
+    [type]: media,
+  });
 }
 
 /// Marca a última mensagem do cliente como lida (tique azul) e, opcionalmente,

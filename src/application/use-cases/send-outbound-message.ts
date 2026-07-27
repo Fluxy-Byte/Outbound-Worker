@@ -4,7 +4,7 @@ import type { OutboundMessagePayload } from "../../domain/contracts/outbound-mes
 import { clearSessionProcessing } from "../../infrastructure/cache/redis/processing-state";
 import { getMongoDb } from "../../infrastructure/database/mongo/client";
 import { prisma } from "../../infrastructure/database/prisma/client";
-import { sendTextMessage } from "../../infrastructure/meta/graph-api-client";
+import { sendMediaMessage, sendTextMessage } from "../../infrastructure/meta/graph-api-client";
 import { assertQueueWithDlq } from "../../infrastructure/queue/rabbitmq/connection";
 import { QUEUE_DESK_MESSAGE_SENT } from "../../infrastructure/queue/rabbitmq/queues";
 
@@ -13,6 +13,13 @@ const SENDER_TYPE_BY_ORIGIN: Record<OutboundMessagePayload["origin"], MessageDoc
   ATTENDANT: "ATTENDANT",
   SYSTEM: "SYSTEM",
 };
+
+const MEDIA_TYPE_BY_MESSAGE_TYPE = {
+  AUDIO: "audio",
+  IMAGE: "image",
+  DOCUMENT: "document",
+  STICKER: "sticker",
+} as const;
 
 /// Envia a resposta pro cliente via Meta, grava o histórico no Mongo,
 /// atualiza Target.lastInteractionAt e, se a origem foi um atendente humano,
@@ -30,27 +37,38 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
     await clearSessionProcessing(payload.messagingSession.id);
   }
 
-  // Só texto é gerado pela pipeline hoje (áudio/imagem: nenhum serviço a
-  // montante ainda produz isso — quando produzir, a Graph API aceita type
-  // "audio"/"image" com { link } ou { id }, mesma forma de chamada).
-  if (!payload.answer.text) {
-    console.log(
-      `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} sem texto (áudio/imagem ainda não suportado) — ignorando envio.`,
-    );
+  // messageType+mediaUrl só vêm preenchidos no repasse de anexo do atendente
+  // (Desk-Worker) — o resto da pipeline (IA, transferMessage, closingMessage)
+  // sempre manda texto puro em answer.text.
+  const mediaType = payload.messageType ? MEDIA_TYPE_BY_MESSAGE_TYPE[payload.messageType as keyof typeof MEDIA_TYPE_BY_MESSAGE_TYPE] : undefined;
+  const isMedia = Boolean(payload.mediaUrl) && Boolean(mediaType);
+
+  if (!isMedia && !payload.answer.text) {
+    console.log(`[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} sem texto nem mídia — ignorando envio.`);
     return;
   }
 
   console.log(
-    `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} chamando Meta Graph API — phoneNumberId=${payload.whatsappChannel.phoneNumberId} toWaId=${payload.target.waId}`,
+    `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} chamando Meta Graph API — phoneNumberId=${payload.whatsappChannel.phoneNumberId} toWaId=${payload.target.waId} tipo=${isMedia ? mediaType : "text"}`,
   );
 
   let externalMessageId: string;
   try {
-    ({ externalMessageId } = await sendTextMessage(
-      payload.whatsappChannel.phoneNumberId,
-      payload.target.waId,
-      payload.answer.text,
-    ));
+    if (isMedia) {
+      ({ externalMessageId } = await sendMediaMessage(
+        payload.whatsappChannel.phoneNumberId,
+        payload.target.waId,
+        mediaType!,
+        payload.mediaUrl!,
+        { caption: payload.answer.text || undefined, filename: payload.answer.text || undefined },
+      ));
+    } else {
+      ({ externalMessageId } = await sendTextMessage(
+        payload.whatsappChannel.phoneNumberId,
+        payload.target.waId,
+        payload.answer.text,
+      ));
+    }
   } catch (error) {
     console.error(`[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} falha ao chamar Meta Graph API:`, error);
     throw error;
@@ -73,7 +91,8 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
     messagingSessionId: payload.messagingSession.id,
     direction: "OUTBOUND",
     senderType: SENDER_TYPE_BY_ORIGIN[payload.origin],
-    messageType: "TEXT",
+    messageType: isMedia ? payload.messageType! : "TEXT",
+    mediaUrl: isMedia ? payload.mediaUrl : undefined,
     externalMessageId,
     text: payload.answer.text,
     createdAt: new Date(),
