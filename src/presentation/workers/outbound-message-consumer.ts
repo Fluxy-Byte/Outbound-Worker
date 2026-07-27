@@ -18,8 +18,14 @@ async function onMessage(channel: Channel, msg: ConsumeMessage | null): Promise<
 
   try {
     const payload = JSON.parse(msg.content.toString()) as OutboundMessagePayload;
+    console.log(
+      `[DESK-MSG][outbound-consumer] mensagem recebida da fila outbound.message.send — origin=${payload.origin} ticketId=${payload.ticketId ?? "-"}`,
+    );
     await sendOutboundMessage(channel, payload);
     channel.ack(msg);
+    console.log(
+      `[DESK-MSG][outbound-consumer] mensagem processada e ack enviado — origin=${payload.origin} ticketId=${payload.ticketId ?? "-"}`,
+    );
   } catch (error) {
     console.error("Erro ao processar outbound.message.send:", error);
     channel.nack(msg, false, false);

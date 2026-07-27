@@ -19,6 +19,10 @@ const SENDER_TYPE_BY_ORIGIN: Record<OutboundMessagePayload["origin"], MessageDoc
 /// avisa o Desk-Worker (fila desk.message.sent) pra reconciliar o
 /// TicketMessage correspondente com o id do documento Mongo.
 export async function sendOutboundMessage(channel: Channel, payload: OutboundMessagePayload): Promise<void> {
+  console.log(
+    `[DESK-MSG][sendOutboundMessage] início — origin=${payload.origin} ticketId=${payload.ticketId ?? "-"} targetId=${payload.target.id} waId=${payload.target.waId}`,
+  );
+
   // Libera o flag de "sessão em processamento" assim que o turno de IA
   // termina — independente do resultado do envio abaixo, o AI-Worker já
   // concluiu o processamento desse lote.
@@ -30,14 +34,30 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
   // montante ainda produz isso — quando produzir, a Graph API aceita type
   // "audio"/"image" com { link } ou { id }, mesma forma de chamada).
   if (!payload.answer.text) {
-    console.log("Mensagem sem texto (áudio/imagem ainda não suportado) — ignorando envio.");
+    console.log(
+      `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} sem texto (áudio/imagem ainda não suportado) — ignorando envio.`,
+    );
     return;
   }
 
-  const { externalMessageId } = await sendTextMessage(
-    payload.whatsappChannel.phoneNumberId,
-    payload.target.waId,
-    payload.answer.text,
+  console.log(
+    `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} chamando Meta Graph API — phoneNumberId=${payload.whatsappChannel.phoneNumberId} toWaId=${payload.target.waId}`,
+  );
+
+  let externalMessageId: string;
+  try {
+    ({ externalMessageId } = await sendTextMessage(
+      payload.whatsappChannel.phoneNumberId,
+      payload.target.waId,
+      payload.answer.text,
+    ));
+  } catch (error) {
+    console.error(`[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} falha ao chamar Meta Graph API:`, error);
+    throw error;
+  }
+
+  console.log(
+    `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} Meta Graph API respondeu OK — externalMessageId=${externalMessageId}`,
   );
 
   const target = await prisma.target.update({
@@ -60,6 +80,9 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
   };
 
   const insertResult = await db.collection<MessageDocument>(MESSAGES_COLLECTION).insertOne(document);
+  console.log(
+    `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} histórico gravado no Mongo — mongoMessageId=${insertResult.insertedId.toString()}`,
+  );
 
   if (payload.origin === "ATTENDANT" && payload.ticketId) {
     await assertQueueWithDlq(channel, QUEUE_DESK_MESSAGE_SENT);
@@ -74,5 +97,8 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
       ),
       { persistent: true },
     );
+    console.log(`[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId} publicado em desk.message.sent (reconciliação)`);
   }
+
+  console.log(`[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} concluído com sucesso`);
 }
