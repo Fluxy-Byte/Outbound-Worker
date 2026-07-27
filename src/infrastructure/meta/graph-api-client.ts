@@ -46,6 +46,35 @@ export async function sendTextMessage(phoneNumberId: string, toWaId: string, tex
   return { externalMessageId };
 }
 
+/// Marca a última mensagem do cliente como lida (tique azul) e, opcionalmente,
+/// liga o indicador "digitando..." no WhatsApp do cliente — mesma chamada da
+/// Cloud API pros dois casos (typing_indicator só fica ativo por ~25s ou até
+/// a próxima mensagem ser enviada, o que vier primeiro).
+export async function sendReadReceipt(phoneNumberId: string, messageId: string, options: { typingIndicator?: boolean } = {}): Promise<void> {
+  const body: Record<string, unknown> = {
+    messaging_product: "whatsapp",
+    status: "read",
+    message_id: messageId,
+  };
+  if (options.typingIndicator) {
+    body.typing_indicator = { type: "text" };
+  }
+
+  const response = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.META_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new MetaGraphApiError(`Meta Graph API respondeu ${response.status} ao marcar leitura`, response.status, errorBody);
+  }
+}
+
 /// Chamada somente-leitura, usada só para validar se o token/número configurado
 /// é uma credencial viva antes de tentar enviar algo de verdade.
 export async function checkPhoneNumberCredential(phoneNumberId: string): Promise<{ ok: boolean; status: number; body: unknown }> {
