@@ -18,8 +18,6 @@ const envSchema = z.object({
   MONGO_URL: z.string().min(1),
   MONGO_DB_NAME: z.string().min(1),
 
-  META_ACCESS_TOKEN: z.string().min(1),
-
   SEAWEEDFS_S3_ENDPOINT: z.string().min(1),
   SEAWEEDFS_S3_ACCESS_KEY: z.string().min(1),
   SEAWEEDFS_S3_SECRET_KEY: z.string().min(1),

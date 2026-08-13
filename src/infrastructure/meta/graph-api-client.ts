@@ -1,5 +1,3 @@
-import { env } from "../../config/env";
-
 const GRAPH_API_BASE = "https://graph.facebook.com/v22.0";
 
 export class MetaGraphApiError extends Error {
@@ -17,11 +15,11 @@ interface SendTextResult {
   externalMessageId: string;
 }
 
-async function postMessage(phoneNumberId: string, body: Record<string, unknown>): Promise<SendTextResult> {
+async function postMessage(phoneNumberId: string, accessToken: string, body: Record<string, unknown>): Promise<SendTextResult> {
   const response = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.META_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -41,8 +39,8 @@ async function postMessage(phoneNumberId: string, body: Record<string, unknown>)
   return { externalMessageId };
 }
 
-export async function sendTextMessage(phoneNumberId: string, toWaId: string, text: string): Promise<SendTextResult> {
-  return postMessage(phoneNumberId, {
+export async function sendTextMessage(phoneNumberId: string, toWaId: string, text: string, accessToken: string): Promise<SendTextResult> {
+  return postMessage(phoneNumberId, accessToken, {
     messaging_product: "whatsapp",
     to: toWaId,
     type: "text",
@@ -59,13 +57,14 @@ export async function sendMediaMessage(
   toWaId: string,
   type: MediaMessageType,
   mediaUrl: string,
+  accessToken: string,
   options: { caption?: string; filename?: string } = {},
 ): Promise<SendTextResult> {
   const media: Record<string, unknown> = { link: mediaUrl };
   if (options.caption && (type === "image" || type === "document")) media.caption = options.caption;
   if (options.filename && type === "document") media.filename = options.filename;
 
-  return postMessage(phoneNumberId, {
+  return postMessage(phoneNumberId, accessToken, {
     messaging_product: "whatsapp",
     to: toWaId,
     type,
@@ -77,7 +76,12 @@ export async function sendMediaMessage(
 /// liga o indicador "digitando..." no WhatsApp do cliente — mesma chamada da
 /// Cloud API pros dois casos (typing_indicator só fica ativo por ~25s ou até
 /// a próxima mensagem ser enviada, o que vier primeiro).
-export async function sendReadReceipt(phoneNumberId: string, messageId: string, options: { typingIndicator?: boolean } = {}): Promise<void> {
+export async function sendReadReceipt(
+  phoneNumberId: string,
+  messageId: string,
+  accessToken: string,
+  options: { typingIndicator?: boolean } = {},
+): Promise<void> {
   const body: Record<string, unknown> = {
     messaging_product: "whatsapp",
     status: "read",
@@ -90,7 +94,7 @@ export async function sendReadReceipt(phoneNumberId: string, messageId: string, 
   const response = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.META_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -104,9 +108,9 @@ export async function sendReadReceipt(phoneNumberId: string, messageId: string, 
 
 /// Chamada somente-leitura, usada só para validar se o token/número configurado
 /// é uma credencial viva antes de tentar enviar algo de verdade.
-export async function checkPhoneNumberCredential(phoneNumberId: string): Promise<{ ok: boolean; status: number; body: unknown }> {
+export async function checkPhoneNumberCredential(phoneNumberId: string, accessToken: string): Promise<{ ok: boolean; status: number; body: unknown }> {
   const response = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}?fields=id,display_phone_number`, {
-    headers: { Authorization: `Bearer ${env.META_ACCESS_TOKEN}` },
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
   const body = await response.json().catch(() => null);
   return { ok: response.ok, status: response.status, body };

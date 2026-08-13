@@ -52,6 +52,15 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
     `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} chamando Meta Graph API — phoneNumberId=${payload.whatsappChannel.phoneNumberId} toWaId=${payload.target.waId} tipo=${isMedia ? mediaType : "text"}`,
   );
 
+  const dbChannel = await prisma.whatsappChannel.findUniqueOrThrow({
+    where: { id: payload.whatsappChannel.id },
+    select: { metaAccessToken: true },
+  });
+  if (!dbChannel.metaAccessToken) {
+    throw new Error(`WhatsApp Channel ${payload.whatsappChannel.id} não tem token de acesso da Meta cadastrado.`);
+  }
+  const accessToken = dbChannel.metaAccessToken;
+
   let externalMessageId: string;
   try {
     if (isMedia) {
@@ -60,6 +69,7 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
         payload.target.waId,
         mediaType!,
         payload.mediaUrl!,
+        accessToken,
         { caption: payload.answer.text || undefined, filename: payload.answer.text || undefined },
       ));
     } else {
@@ -67,6 +77,7 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
         payload.whatsappChannel.phoneNumberId,
         payload.target.waId,
         payload.answer.text,
+        accessToken,
       ));
     }
   } catch (error) {
