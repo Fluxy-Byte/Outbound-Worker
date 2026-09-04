@@ -20,7 +20,6 @@ async function main() {
       id: "test-agent-outbound-1",
       organizationId: org.id,
       name: "Agente Teste",
-      welcomeMessage: "oi",
       processingMessage: "proc",
       transferMessage: "transf",
       unsupportedFormatMessage: "unsup",
