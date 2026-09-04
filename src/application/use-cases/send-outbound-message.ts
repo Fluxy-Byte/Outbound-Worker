@@ -48,6 +48,17 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
     return;
   }
 
+  // Contato só identificado por BSUID (nunca trocou telefone com a gente, ou
+  // a Meta parou de enviar o wa_id dele) — a Graph API ainda não aceita
+  // enviar usando o BSUID como destinatário (só leitura por enquanto), então
+  // não tem como entregar esta mensagem agora.
+  if (!payload.target.waId) {
+    console.warn(
+      `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} targetId=${payload.target.id} sem waId (só BSUID) — não é possível enviar pela Graph API ainda, ignorando envio.`,
+    );
+    return;
+  }
+
   console.log(
     `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} chamando Meta Graph API — phoneNumberId=${payload.whatsappChannel.phoneNumberId} toWaId=${payload.target.waId} tipo=${isMedia ? mediaType : "text"}`,
   );
