@@ -9,7 +9,7 @@ export interface OutboundMessagePayload {
   /// leitura, previsto pra julho/2026) — ver o guard em
   /// send-outbound-message.ts.
   target: { id: string; waId: string | null; name?: string | null; metadata?: Record<string, unknown> | null };
-  whatsappChannel: { id: string; phoneNumberId: string; wabaId: string };
+  channel: { id: string; phoneNumberId: string; wabaId: string };
   messagingSession: { id: string; [key: string]: unknown };
   answer: { text: string; audio: string; image: string };
   // messageType/mediaUrl: só preenchido no repasse de anexo do atendente

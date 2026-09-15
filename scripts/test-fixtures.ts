@@ -28,7 +28,7 @@ async function main() {
       errorMessage: "erro",
     },
   });
-  const wc = await prisma.whatsappChannel.create({
+  const wc = await prisma.channel.create({
     data: {
       id: "test-wc-outbound-1",
       organizationId: org.id,

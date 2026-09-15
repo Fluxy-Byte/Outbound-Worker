@@ -7,7 +7,7 @@ async function main() {
 
   const payload = {
     target: { id: "test-target-outbound-1", waId: "5511999999999", name: "Cliente Teste" },
-    whatsappChannel: { id: "test-wc-outbound-1", phoneNumberId: "903493939520850", wabaId: "1419043729557569" },
+    channel: { id: "test-wc-outbound-1", phoneNumberId: "903493939520850", wabaId: "1419043729557569" },
     messagingSession: { id: "test-session-outbound-1" },
     answer: { text: "Mensagem de teste do pipeline Outbound-Worker.", audio: "", image: "" },
     finishesProcessing: true,

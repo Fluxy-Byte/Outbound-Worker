@@ -60,15 +60,15 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
   }
 
   console.log(
-    `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} chamando Meta Graph API — phoneNumberId=${payload.whatsappChannel.phoneNumberId} toWaId=${payload.target.waId} tipo=${isMedia ? mediaType : "text"}`,
+    `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} chamando Meta Graph API — phoneNumberId=${payload.channel.phoneNumberId} toWaId=${payload.target.waId} tipo=${isMedia ? mediaType : "text"}`,
   );
 
-  const dbChannel = await prisma.whatsappChannel.findUniqueOrThrow({
-    where: { id: payload.whatsappChannel.id },
+  const dbChannel = await prisma.channel.findUniqueOrThrow({
+    where: { id: payload.channel.id },
     select: { metaAccessToken: true },
   });
   if (!dbChannel.metaAccessToken) {
-    throw new Error(`WhatsApp Channel ${payload.whatsappChannel.id} não tem token de acesso da Meta cadastrado.`);
+    throw new Error(`WhatsApp Channel ${payload.channel.id} não tem token de acesso da Meta cadastrado.`);
   }
   const accessToken = dbChannel.metaAccessToken;
 
@@ -76,7 +76,7 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
   try {
     if (isMedia) {
       ({ externalMessageId } = await sendMediaMessage(
-        payload.whatsappChannel.phoneNumberId,
+        payload.channel.phoneNumberId,
         payload.target.waId,
         mediaType!,
         payload.mediaUrl!,
@@ -85,7 +85,7 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
       ));
     } else {
       ({ externalMessageId } = await sendTextMessage(
-        payload.whatsappChannel.phoneNumberId,
+        payload.channel.phoneNumberId,
         payload.target.waId,
         payload.answer.text,
         accessToken,
@@ -109,7 +109,7 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
   const document: MessageDocument = {
     organizationId: target.organizationId,
     targetId: payload.target.id,
-    whatsappChannelId: payload.whatsappChannel.id,
+    whatsappChannelId: payload.channel.id,
     messagingSessionId: payload.messagingSession.id,
     direction: "OUTBOUND",
     senderType: SENDER_TYPE_BY_ORIGIN[payload.origin],

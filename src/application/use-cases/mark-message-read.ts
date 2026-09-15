@@ -7,7 +7,7 @@ import { sendReadReceipt } from "../../infrastructure/meta/graph-api-client";
 /// retry/DLQ, só log. O consumer sempre dá ack.
 export async function markMessageRead(payload: MarkReadPayload): Promise<void> {
   try {
-    const dbChannel = await prisma.whatsappChannel.findUnique({
+    const dbChannel = await prisma.channel.findUnique({
       where: { id: payload.whatsappChannelId },
       select: { metaAccessToken: true },
     });
