@@ -7,6 +7,7 @@ import { prisma } from "../../infrastructure/database/prisma/client";
 import { sendMediaMessage, sendTextMessage } from "../../infrastructure/meta/graph-api-client";
 import { assertQueueWithDlq } from "../../infrastructure/queue/rabbitmq/connection";
 import { QUEUE_DESK_MESSAGE_SENT } from "../../infrastructure/queue/rabbitmq/queues";
+import { recordMessageLog } from "./message-log-service";
 
 const SENDER_TYPE_BY_ORIGIN: Record<OutboundMessagePayload["origin"], MessageDocument["senderType"]> = {
   AI: "AGENT_AI",
@@ -100,6 +101,13 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
     `[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} Meta Graph API respondeu OK — externalMessageId=${externalMessageId}`,
   );
 
+  // externalMessageId (wamid) é o id mais cedo disponível pra esta mensagem —
+  // ela não existe em lugar nenhum (Mongo ou Meta) antes do envio acima, então
+  // não dá pra registrar "start" mais cedo que isto. Diferente dos outros
+  // serviços (que preferem mongoMessageId), aqui usamos o wamid do início ao
+  // fim do estágio.
+  await recordMessageLog(externalMessageId, "start");
+
   const target = await prisma.target.update({
     where: { id: payload.target.id },
     data: { lastInteractionAt: new Date() },
@@ -142,4 +150,5 @@ export async function sendOutboundMessage(channel: Channel, payload: OutboundMes
   }
 
   console.log(`[DESK-MSG][sendOutboundMessage] ticketId=${payload.ticketId ?? "-"} concluído com sucesso`);
+  await recordMessageLog(externalMessageId, "end");
 }
