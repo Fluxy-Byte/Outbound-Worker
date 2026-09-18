@@ -10,11 +10,13 @@ export async function markMessageRead(payload: MarkReadPayload): Promise<void> {
   await recordMessageLog(payload.externalMessageId, "start");
   try {
     const dbChannel = await prisma.channel.findUnique({
-      where: { id: payload.whatsappChannelId },
+      where: payload.whatsappChannelId ? { id: payload.whatsappChannelId } : { phoneNumberId: payload.phoneNumberId },
       select: { metaAccessToken: true },
     });
     if (!dbChannel?.metaAccessToken) {
-      console.warn(`[DESK-MSG][markMessageRead] canal ${payload.whatsappChannelId} sem token da Meta — ignorando.`);
+      console.warn(
+        `[DESK-MSG][markMessageRead] canal ${payload.whatsappChannelId ?? payload.phoneNumberId} sem token da Meta — ignorando.`,
+      );
       return;
     }
 
